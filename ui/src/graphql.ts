@@ -369,3 +369,38 @@ export const LITERATURE_SUGGEST = gql(`
     }
   }
 `);
+
+export const HUNT_PASSAGES = gql(`
+  query educationHuntPassages {
+    educationHuntPassages {
+      id
+      title
+      level
+      text
+      errorCount
+    }
+  }
+`);
+
+export const HUNT_CHECK = gql(`
+  mutation educationHuntCheck($id: String!, $picks: [EducationHuntPickInput!]!) {
+    educationHuntCheck(id: $id, picks: $picks) {
+      score
+      found
+      fixed
+      total
+      falsePositives
+      xpEarned
+      errors {
+        wrong
+        right
+        ruleTitle
+        rule
+        found
+        correction
+        correctionOk
+        explanationMn
+      }
+    }
+  }
+`);

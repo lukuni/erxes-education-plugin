@@ -43,7 +43,7 @@ export const AiPage = () => {
   };
 
   return (
-    <Shell title="AI туслах" icon={IconSparkles}>
+    <Shell title="Монгол хэл · Текст шалгах" icon={IconSparkles}>
       <section className="edu-glass edu-rise education:flex education:flex-col education:gap-4">
         <div className="edu-between">
           <div>

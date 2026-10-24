@@ -14,6 +14,7 @@ const DictationPage = page(() => import("./pages/DictationPage"), "DictationPage
 const ReviewPage = page(() => import("./pages/ReviewPage"), "ReviewPage");
 const CardsPage = page(() => import("./pages/CardsPage"), "CardsPage");
 const LiteraturePage = page(() => import("./pages/LiteraturePage"), "LiteraturePage");
+const LanguagePage = page(() => import("./pages/LanguagePage"), "LanguagePage");
 const ShopPage = page(() => import("./pages/ShopPage"), "ShopPage");
 const AiPage = page(() => import("./pages/AiPage"), "AiPage");
 const TeacherPage = page(() => import("./pages/TeacherPage"), "TeacherPage");
@@ -29,6 +30,8 @@ export const Education = () => (
         <Route path="dictation/:lessonId" element={<DictationPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="cards" element={<CardsPage />} />
+        <Route path="language" element={<LanguagePage />} />
+        <Route path="language/hunt/:huntId" element={<LanguagePage />} />
         <Route path="literature" element={<LiteraturePage />} />
         <Route path="literature/:workId" element={<LiteraturePage />} />
         <Route path="shop" element={<ShopPage />} />

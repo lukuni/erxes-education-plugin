@@ -7,7 +7,6 @@ import {
   GALIG_NOTES,
   SEED_CARDS,
   SEED_LESSONS,
-  SEED_LITERATURE,
   SHOP_ITEMS,
 } from "./content.ts";
 import type { IMistake, IProgressDocument } from "./db/definitions.ts";
@@ -130,15 +129,8 @@ export const ensureSeed = async (models: IModels, subdomain: string) => {
       },
     })),
   );
-  await models.Literature.bulkWrite(
-    SEED_LITERATURE.map((work) => ({
-      updateOne: {
-        filter: { code: work.code },
-        update: { $set: { ...work, source: "seed" } },
-        upsert: true,
-      },
-    })),
-  );
+  // Module C is literature only: drop the proverb samples earlier versions seeded.
+  await models.Literature.deleteMany({ source: "seed" });
   seeded.add(subdomain);
 };
 
@@ -200,7 +192,18 @@ export const progressView = (progress: IProgressDocument, canTeach: boolean) => 
   cardsStudied: progress.cardsStudied,
   teacherRewards: progress.teacherRewards,
   practicedToday: progress.lastActiveDay === dayKey(),
-  mistakes: progress.mistakes.map((m) => ({ ...m, lastAt: m.lastAt?.toISOString?.() ?? null })),
+  // Read fields explicitly: spreading a Mongoose subdocument copies its internals, not its data.
+  mistakes: progress.mistakes
+    .filter((m) => typeof m.word === "string" && m.word.length > 0)
+    .map((m) => ({
+      word: m.word,
+      wrong: m.wrong ?? "",
+      sentence: m.sentence ?? "",
+      ruleTitle: m.ruleTitle ?? "",
+      rule: m.rule ?? "",
+      count: m.count ?? 1,
+      lastAt: m.lastAt instanceof Date ? m.lastAt.toISOString() : null,
+    })),
   heatmap: heatmap(progress),
   canTeach,
 });

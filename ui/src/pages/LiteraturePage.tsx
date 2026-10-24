@@ -18,13 +18,23 @@ const List = () => {
   return (
     <>
       <section className="edu-glass edu-rise">
-        <h1 className="edu-h1">📚 Уран зохиол & ЭЕШ</h1>
+        <span className="edu-tag">Модуль C</span>
+        <h1 className="edu-h1" style={{ marginTop: 8 }}>
+          📚 Уран зохиол & ЭЕШ
+        </h1>
         <p className="edu-muted" style={{ margin: "6px 0 0" }}>
           Эхийг уншаад гол санааг <b>өөрийн үгээр</b> бич. Утгын тохирол (0–100%) ба зөв бичгийг шууд үнэлнэ.
         </p>
       </section>
       {works.length === 0 ? (
-        <EmptyBlock emoji="📭" title="Зохиол алга. Багш «Багшийн самбар»-аас нэмнэ." />
+        <EmptyBlock emoji="📭" title="Уран зохиолын эх хараахан алга">
+          <p className="edu-muted" style={{ margin: 0, maxWidth: 520 }}>
+            Багш <b>Багшийн самбар → «Уран зохиол нэмэх»</b> хэсэгт сурах бичгээс эхийг (Д.Нацагдорж, Б.Явуухулан, С.Эрдэнэ, Т.Галсан …) хуулж оруулна.
+          </p>
+          <Link to={`${BASE}/teacher`} className="edu-btn">
+            Багшийн самбар
+          </Link>
+        </EmptyBlock>
       ) : (
         <div className="edu-grid">
           {works.map((work) => (
@@ -234,7 +244,7 @@ const Work = ({ id }: { id: string }) => {
 export const LiteraturePage = () => {
   const { workId } = useParams();
   return (
-    <Shell title="Уран зохиол & ЭЕШ" icon={IconFeather}>
+    <Shell title="Уран зохиол" icon={IconFeather}>
       {workId ? <Work id={workId} /> : <List />}
     </Shell>
   );

@@ -222,51 +222,6 @@ export const GALIG_NOTES: Record<string, string> = {
   amidural: "amidural → Амьдрал: i эгшиг «ь» болж, дунд үеийн u гээгдэнэ.",
 };
 
-// ---- Literature & ЭЕШ ------------------------------------------------------------
-// Teachers add syllabus excerpts (Д.Нацагдорж, Б.Явуухулан …) from the
-// textbook on the Teacher page. The seed only ships public-domain folk
-// proverbs so the module works on a fresh install.
-
-export interface ISeedLiterature {
-  code: string;
-  title: string;
-  author: string;
-  genre: string;
-  excerpt: string;
-  theme: string;
-  keyPoints: string[];
-}
-
-export const SEED_LITERATURE: ISeedLiterature[] = [
-  {
-    code: "proverb-water",
-    title: "Ус уувал усны ёсоор",
-    author: "Ардын зүйр цэцэн үг",
-    genre: "Зүйр цэцэн үг",
-    excerpt: "Ус уувал усны ёсоор,\nНутаг сурвал нутгийн ёсоор.",
-    theme: "Шинэ газар, шинэ орчинд очвол тухайн газрын ёс заншил, дүрэм журмыг хүндэтгэж дагах хэрэгтэй.",
-    keyPoints: ["Шинэ орчин, газар", "Ёс заншлыг хүндэтгэх", "Тухайн газрын дүрмийг дагах"],
-  },
-  {
-    code: "proverb-tree",
-    title: "Ганц мод гал болдоггүй",
-    author: "Ардын зүйр цэцэн үг",
-    genre: "Зүйр цэцэн үг",
-    excerpt: "Ганц мод гал болдоггүй,\nГанц хүн айл болдоггүй.",
-    theme: "Хүн ганцаараа юу ч бүтээж чадахгүй; эв нэгдэл, хамт олон, бусдын дэмжлэг чухал.",
-    keyPoints: ["Ганцаараа хүчгүй", "Эв нэгдэл, хамт олон", "Бусадтай хамтрах"],
-  },
-  {
-    code: "proverb-mother",
-    title: "Эх нь хээр алаг бол",
-    author: "Ардын зүйр цэцэн үг",
-    genre: "Зүйр цэцэн үг",
-    excerpt: "Эх нь хээр алаг бол\nХүүхэд нь шийр алаг.",
-    theme: "Хүүхэд эцэг эхээсээ зан чанар, үйлдлийг өвлөж, тэднээс үлгэр жишээ авдаг.",
-    keyPoints: ["Эцэг эх, хүүхэд", "Зан чанар өвлөгдөх", "Үлгэр жишээ"],
-  },
-];
-
 export const SEED_CARDS: ISeedCard[] = [
   { code: "mongol", cyrillic: "Монгол", script: "ᠮᠣᠩᠭᠣᠯ", galig: "mongɣol", meaning: "Mongolia", emoji: "🇲🇳", premium: false },
   { code: "usu", cyrillic: "Ус", script: "ᠤᠰᠤ", galig: "usu", meaning: "Water", emoji: "💧", premium: false },
@@ -314,3 +269,67 @@ export const SHOP_ITEMS: IShopItem[] = [
 ];
 
 export const DEFAULT_AVATAR = "🐣";
+
+// ---- Literature & ЭЕШ ------------------------------------------------------------
+// Module C uses only literature excerpts (Д.Нацагдорж, Б.Явуухулан, С.Эрдэнэ,
+// Т.Галсан …) that teachers add from the textbook on the Teacher page — no
+// proverbs and no bundled texts.
+
+// ---- Module B: error hunt passages ---------------------------------------------------
+// Each passage contains deliberate misspellings; every `wrong` word occurs in
+// the text exactly once and is rejected by the Hunspell dictionary, while
+// every `right` word is accepted.
+
+export interface IHuntError {
+  wrong: string;
+  right: string;
+  ruleTitle: string;
+  rule: string;
+}
+
+export interface IHuntPassage {
+  id: string;
+  title: string;
+  level: string;
+  text: string;
+  errors: IHuntError[];
+}
+
+export const HUNT_PASSAGES: IHuntPassage[] = [
+  {
+    id: "school-day",
+    title: "Сургуулийн өдөр",
+    level: "Анхан",
+    text: "Би өчгөдөр сургуулдаа эрт ирэсэн. Багш шинэ дүрмыг тайлбарлаж, бид хичээлдээ анхааралтай суулаа.",
+    errors: [
+      { wrong: "өчгөдөр", right: "өчигдөр", ruleTitle: "Тогтсон бичлэг", rule: "Өчигдөр гэдэг үгийн зөв бичлэг: ө-ч-и-г-д-ө-р." },
+      { wrong: "сургуулдаа", right: "сургуульдаа", ruleTitle: "Зөөлний тэмдэг", rule: "Ь-ээр төгссөн үгэнд гийгүүлэгчээр эхэлсэн нөхцөл залгахад ь хэвээр үлдэнэ: сургууль → сургуульдаа." },
+      { wrong: "ирэсэн", right: "ирсэн", ruleTitle: "Эгшиг гээгдэх", rule: "Ир- үйл үгэнд -сэн залгахад холбоос эгшиг орохгүй: ир + сэн = ирсэн." },
+      { wrong: "дүрмыг", right: "дүрмийг", ruleTitle: "Эм үгийн нөхцөл", rule: "Эм үгэнд -ийг, эр үгэнд -ыг залгана. Дүрэм нь эм үг: дүрмийг." },
+    ],
+  },
+  {
+    id: "family",
+    title: "Манай гэр бүл",
+    level: "Анхан",
+    text: "Ээж маань амтатай хоол хийж, эмээ сүүтай цай чанав. Хүүхэдүүд гадаа тоглож байны.",
+    errors: [
+      { wrong: "амтатай", right: "амттай", ruleTitle: "Давхар гийгүүлэгч", rule: "Үндэс нь т-ээр төгсөөд -тай нөхцөл залгахад т давхар бичигдэнэ: амт + тай = амттай." },
+      { wrong: "сүүтай", right: "сүүтэй", ruleTitle: "Эгшиг зохицох ёс", rule: "Сүү нь эм үг тул эм эгшигтэй -тэй нөхцөл залгана: сүүтэй." },
+      { wrong: "Хүүхэдүүд", right: "Хүүхдүүд", ruleTitle: "Эгшиг гээгдэх", rule: "Хүүхэд + үүд → хүүхдүүд: нөхцөл залгахад сүүлийн үеийн богино эгшиг гээгдэнэ." },
+      { wrong: "байны", right: "байна", ruleTitle: "Үйл үгийн нөхцөл", rule: "Одоо цагийн -на/-нэ/-но нөхцөл: бай + на = байна." },
+    ],
+  },
+  {
+    id: "library",
+    title: "Номын сан",
+    level: "Дунд",
+    text: "Миний найз номийн санд очиж, гэрийн даалгавараа хийсэн. Энэ даалгавар их асуудалтайй байсан ч тэр хичээлдаа сайн.",
+    errors: [
+      { wrong: "номийн", right: "номын", ruleTitle: "Харьяалахын тийн ялгал", rule: "Эр үгэнд -ын, эм үгэнд -ийн залгана. Ном нь эр үг: номын." },
+      { wrong: "даалгавараа", right: "даалгавраа", ruleTitle: "Эгшиг гээгдэх", rule: "Даалгавар + аа → даалгавраа: нөхцөл залгахад сүүлийн үеийн богино эгшиг гээгдэнэ." },
+      { wrong: "асуудалтайй", right: "асуудалтай", ruleTitle: "Илүү үсэг", rule: "-тай нөхцөл нэг й-ээр төгсөнө: асуудал + тай = асуудалтай." },
+      { wrong: "хичээлдаа", right: "хичээлдээ", ruleTitle: "Эгшиг зохицох ёс", rule: "Хичээл нь эм үг тул -дээ залгана: хичээлдээ." },
+    ],
+  },
+];

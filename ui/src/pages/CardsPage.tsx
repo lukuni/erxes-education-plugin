@@ -7,6 +7,7 @@ import { BASE, EmptyBlock, ErrorBlock, LoadingBlock, Shell } from "../components
 import { CARDS_QUERY, SCRIPT_ANSWER } from "../graphql";
 import { confettiFrom, shuffle, sound } from "../lib/fx";
 import { useVoice } from "../lib/voice";
+import { ScriptBasics } from "../components/ScriptBasics";
 
 type Word = EducationCardsQuery["educationCards"][number];
 type Mode = "choice" | "typing";
@@ -236,6 +237,7 @@ const ScriptTask = ({
 export const CardsPage = () => {
   useMongolianFont();
   const { data, loading, error, refetch } = useQuery(CARDS_QUERY);
+  const [tab, setTab] = useState<"basics" | "practice">("basics");
   const [mode, setMode] = useState<Mode>("choice");
   const [showGalig, setShowGalig] = useState(true);
   const [round, setRound] = useState(0);
@@ -253,7 +255,35 @@ export const CardsPage = () => {
   };
 
   return (
-    <Shell title="Монгол бичиг · Галиг" icon={IconAlphabetCyrillic}>
+    <Shell title="Монгол бичиг" icon={IconAlphabetCyrillic}>
+      <section className="edu-glass edu-between">
+        <div>
+          <span className="edu-tag">Модуль A</span>
+          <h1 className="edu-h1" style={{ marginTop: 8 }}>
+            ᠮ Монгол бичиг
+          </h1>
+        </div>
+        <div className="edu-row">
+          <button
+            type="button"
+            className={`edu-btn edu-btn--sm ${tab === "basics" ? "" : "edu-btn--ghost"}`}
+            onClick={() => setTab("basics")}
+          >
+            📖 Үндсэн ойлголт
+          </button>
+          <button
+            type="button"
+            className={`edu-btn edu-btn--sm ${tab === "practice" ? "" : "edu-btn--ghost"}`}
+            onClick={() => setTab("practice")}
+          >
+            ✍️ Дасгал: галиг → кирилл
+          </button>
+        </div>
+      </section>
+      {tab === "basics" ? (
+        <ScriptBasics />
+      ) : (
+      <>
       <div className="edu-between">
         <div className="edu-row">
           <button
@@ -303,7 +333,9 @@ export const CardsPage = () => {
         </section>
       )}
 
-      {locked > 0 && (
+      </>
+      )}
+      {tab === "practice" && locked > 0 && (
         <div className="edu-glass edu-between">
           <span>
             🎴 <b>{locked}</b> тусгай үг (Чингис, Хаан, Эх орон …) түгжээтэй байна.

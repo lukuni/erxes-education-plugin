@@ -45,7 +45,7 @@ export const ReviewPage = () => {
   };
 
   return (
-    <Shell title="Алдаа засах" icon={IconRepeat}>
+    <Shell title="Монгол хэл · Алдаа засах" icon={IconRepeat}>
       {loading ? (
         <LoadingBlock height={260} />
       ) : error || !data ? (

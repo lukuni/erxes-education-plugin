@@ -2,8 +2,8 @@ import { useQuery } from "@apollo/client";
 import { Link } from "react-router";
 import { IconSchool } from "@tabler/icons-react";
 import { Heatmap } from "../components/Heatmap";
-import { BASE, EmptyBlock, ErrorBlock, LoadingBlock, Shell } from "../components/Shell";
-import { LESSONS_QUERY, ME_QUERY } from "../graphql";
+import { BASE, ErrorBlock, LoadingBlock, Shell } from "../components/Shell";
+import { ME_QUERY } from "../graphql";
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -70,28 +70,71 @@ const Hero = () => {
   );
 };
 
+const MODULES = [
+  {
+    to: "cards",
+    letter: "A",
+    glyph: "ᠮ",
+    accent: "indigo",
+    title: "Монгол бичиг",
+    text: "Үсгийн эхэнд, дунд, адагт орох дүрс · галиг → кирилл дасгал",
+  },
+  {
+    to: "language",
+    letter: "B",
+    glyph: "✍️",
+    accent: "coral",
+    title: "Монгол хэл",
+    text: "Алдаа олох, цээж бичиг, текстээ толь бичгээр шалгах",
+  },
+  {
+    to: "literature",
+    letter: "C",
+    glyph: "📚",
+    accent: "mint",
+    title: "Уран зохиол",
+    text: "Эхийг уншаад гол санааг өөрийн үгээр · утгын оноо 0–100%",
+  },
+];
+
+const Modules = () => (
+  <div className="edu-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+    {MODULES.map((m) => (
+      <Link
+        key={m.to}
+        to={`${BASE}/${m.to}`}
+        className={`edu-glass edu-lesson edu-accent--${m.accent}`}
+        style={{ textDecoration: "none", color: "inherit", minHeight: 190 }}
+      >
+        <div className="edu-between">
+          <span className="edu-lesson__emoji" style={{ fontFamily: "'Noto Sans Mongolian', serif" }}>
+            {m.glyph}
+          </span>
+          <span className="edu-tag">Модуль {m.letter}</span>
+        </div>
+        <h3 className="edu-h1" style={{ fontSize: 22 }}>
+          {m.title}
+        </h3>
+        <p className="edu-muted" style={{ margin: 0, fontSize: 14 }}>
+          {m.text}
+        </p>
+        <span className="edu-btn edu-btn--sm" style={{ marginTop: "auto", alignSelf: "flex-start" }}>
+          Нээх →
+        </span>
+      </Link>
+    ))}
+  </div>
+);
+
 const Tiles = () => {
   const { data } = useQuery(ME_QUERY);
-  const mistakes = data?.educationMe.mistakes.length ?? 0;
   const canTeach = data?.educationMe.canTeach ?? false;
-
   const tiles = [
-    { to: "cards", emoji: "ᠮ", bg: "#ece9ff", title: "Монгол бичиг · Галиг", text: "Сонгох эсвэл кириллээр бичих" },
-    { to: "literature", emoji: "📚", bg: "#e7f0ff", title: "Уран зохиол · ЭЕШ", text: "Гол санааг өөрийн үгээр" },
-    {
-      to: "review",
-      emoji: "🔁",
-      bg: "#fff2d6",
-      title: "Алдаа засах",
-      text: mistakes ? `${mistakes} үг давтах` : "Алдаа алга 🎉",
-    },
-    { to: "ai", emoji: "✨", bg: "#dcfaf0", title: "AI туслах", text: "Gemma 4 засварлагч" },
-    { to: "shop", emoji: "🛍️", bg: "#ffe3e3", title: "Онооны дэлгүүр", text: "Аватар, хамгаалалт" },
+    { to: "shop", emoji: "🛍️", bg: "#ffe3e3", title: "Онооны дэлгүүр", text: "Аватар, streak хамгаалалт" },
     ...(canTeach
-      ? [{ to: "teacher", emoji: "🧑‍🏫", bg: "#e7f0ff", title: "Багшийн самбар", text: "Ангийн ахиц" }]
+      ? [{ to: "teacher", emoji: "🧑‍🏫", bg: "#e7f0ff", title: "Багшийн самбар", text: "Ангийн ахиц, эх нэмэх" }]
       : []),
   ];
-
   return (
     <div className="edu-grid">
       {tiles.map((tile) => (
@@ -112,56 +155,11 @@ const Tiles = () => {
   );
 };
 
-const Lessons = () => {
-  const { data, loading, error, refetch } = useQuery(LESSONS_QUERY);
-  if (loading) return <LoadingBlock height={180} />;
-  if (error || !data) return <ErrorBlock message={error?.message ?? "No data"} onRetry={() => refetch()} />;
-  if (data.educationLessons.length === 0) {
-    return <EmptyBlock emoji="📭" title="Хичээл алга. Багш шинэ хичээл нэмэх хэрэгтэй." />;
-  }
-
-  return (
-    <div className="edu-grid">
-      {data.educationLessons.map((lesson) => (
-        <article key={lesson._id} className={`edu-glass edu-lesson edu-accent--${lesson.color}`}>
-          <div className="edu-between">
-            <span className="edu-lesson__emoji">{lesson.emoji}</span>
-            {lesson.bestScore !== null && lesson.bestScore !== undefined ? (
-              <span className={`edu-tag ${lesson.bestScore === 100 ? "edu-tag--mint" : ""}`}>
-                {lesson.bestScore === 100 ? "⭐ 100%" : `Шилдэг ${lesson.bestScore}%`}
-              </span>
-            ) : (
-              <span className="edu-tag edu-tag--amber">Шинэ</span>
-            )}
-          </div>
-          <h3 className="edu-h2">{lesson.title}</h3>
-          <p className="edu-muted" style={{ margin: 0, fontSize: 14 }}>
-            {lesson.description}
-          </p>
-          <div className="edu-between" style={{ marginTop: "auto" }}>
-            <span className="edu-muted" style={{ fontSize: 13 }}>
-              {lesson.itemCount} өгүүлбэр{lesson.source === "gemma" ? " · ✨ Gemma" : ""}
-            </span>
-            <Link to={`${BASE}/dictation/${lesson._id}`} className="edu-btn edu-btn--sm">
-              ▶ Эхлэх
-            </Link>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-};
-
 export const HomePage = () => (
-  <Shell title="Монгол бичиг ба цээж бичиг" icon={IconSchool}>
+  <Shell title="Нүүр" icon={IconSchool}>
     <Hero />
-    <div className="edu-between">
-      <h2 className="edu-h2">🎧 Онлайн цээж бичиг</h2>
-      <span className="edu-muted" style={{ fontSize: 14 }}>
-        Зөв хариулт бүр +10 XP
-      </span>
-    </div>
-    <Lessons />
+    <h2 className="edu-h2">Сургалтын 3 модуль</h2>
+    <Modules />
     <Tiles />
   </Shell>
 );

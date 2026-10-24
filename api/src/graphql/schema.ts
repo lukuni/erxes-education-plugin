@@ -11,7 +11,8 @@ import {
   suggestLiterature,
 } from "../modules/learning/ai.ts";
 import { chimegeEnabled, synthesize } from "../modules/learning/chimege.ts";
-import { SHOP_ITEMS, type ILessonItem } from "../modules/learning/content.ts";
+import { HUNT_PASSAGES, SHOP_ITEMS, type ILessonItem } from "../modules/learning/content.ts";
+import { WORD_RE, normalize } from "../modules/learning/spell.ts";
 import {
   XP,
   addXp,
@@ -104,6 +105,41 @@ export const typeDefs = gql`
     galigNote: String!
     check: EducationWordCheck!
     xpEarned: Int!
+  }
+
+  "Module B · error hunt: a passage with deliberate spelling mistakes (answers stay on the server)."
+  type EducationHuntPassage {
+    id: String!
+    title: String!
+    level: String!
+    text: String!
+    errorCount: Int!
+  }
+
+  type EducationHuntError {
+    wrong: String!
+    right: String!
+    ruleTitle: String!
+    rule: String!
+    found: Boolean!
+    correction: String
+    correctionOk: Boolean!
+    explanationMn: String!
+  }
+
+  type EducationHuntResult {
+    score: Int!
+    found: Int!
+    fixed: Int!
+    total: Int!
+    falsePositives: [String!]!
+    errors: [EducationHuntError!]!
+    xpEarned: Int!
+  }
+
+  input EducationHuntPickInput {
+    word: String!
+    correction: String!
   }
 
   type EducationLiterature {
@@ -265,6 +301,7 @@ export const typeDefs = gql`
     educationMe: EducationProgress!
     educationShopItems: [EducationShopItem!]!
     educationClassOverview: EducationClassOverview!
+    educationHuntPassages: [EducationHuntPassage!]!
     educationLiteratureList: [EducationLiterature!]!
     educationLiterature(_id: String!): EducationLiterature
   }
@@ -278,6 +315,7 @@ export const typeDefs = gql`
     educationAiCheck(text: String!): EducationAiCheck!
     educationTts(text: String!): EducationAudio!
     educationScriptAnswer(code: String!, answer: String!, mode: String!): EducationScriptResult!
+    educationHuntCheck(id: String!, picks: [EducationHuntPickInput!]!): EducationHuntResult!
     educationLiteratureAnswer(_id: String!, summary: String!): EducationSummaryResult!
     educationLiteratureAdd(title: String!, author: String!, genre: String, excerpt: String!, theme: String!, keyPoints: [String!]!): EducationLiterature!
     educationLiteratureRemove(_id: String!): Boolean!
@@ -433,6 +471,11 @@ export const resolvers = {
     educationShopItems: async (_parent: unknown, _args: unknown, context: Context) => {
       await practice(context);
       return SHOP_ITEMS;
+    },
+
+    educationHuntPassages: async (_parent: unknown, _args: unknown, context: Context) => {
+      await practice(context);
+      return HUNT_PASSAGES.map(({ errors, ...p }) => ({ ...p, errorCount: errors.length }));
     },
 
     educationLiteratureList: async (_parent: unknown, _args: unknown, context: Context) => {
@@ -622,6 +665,58 @@ export const resolvers = {
         check: wordView(check),
         xpEarned,
       };
+    },
+
+    educationHuntCheck: async (
+      _parent: unknown,
+      { id, picks }: { id: string; picks: { word: string; correction: string }[] },
+      context: Context,
+    ) => {
+      const user = await practice(context);
+      const passage = HUNT_PASSAGES.find((p) => p.id === id) ?? fail("Эх олдсонгүй");
+      if (picks.length > 30) fail("Хэт олон үг сонгосон байна");
+      const textWords = new Set((passage.text.match(WORD_RE) ?? []).map(normalize));
+      const byWord = new Map(picks.map((p) => [normalize(p.word.trim()), p.correction.trim()]));
+
+      const errors = await Promise.all(
+        passage.errors.map(async (e) => {
+          const correction = byWord.get(normalize(e.wrong));
+          const found = correction !== undefined;
+          const check = found && correction ? await checkAnswer(correction, e.right) : null;
+          const correctionOk = !!check?.is_correct;
+          return {
+            ...e,
+            found,
+            correction: correction ?? null,
+            correctionOk,
+            explanationMn: !found
+              ? `Алдааг олоогүй: «${e.wrong}» → «${e.right}». ${e.rule}`
+              : correctionOk
+                ? e.rule
+                : `Алдааг олсон ч засвар буруу: «${correction || "—"}». Зөв нь «${e.right}». ${e.rule}`,
+          };
+        }),
+      );
+      const errorWords = new Set(passage.errors.map((e) => normalize(e.wrong)));
+      const falsePositives = [...byWord.keys()].filter((w) => textWords.has(w) && !errorWords.has(w));
+
+      const found = errors.filter((e) => e.found).length;
+      const fixed = errors.filter((e) => e.correctionOk).length;
+      const total = passage.errors.length;
+      const score = Math.max(0, Math.round((100 * (found + fixed - falsePositives.length)) / (2 * total)));
+      const xpEarned = found * 5 + fixed * 5 + (score === 100 ? 20 : 0);
+
+      const progress = await getProgress(context.models, user);
+      for (const e of errors.filter((x) => !x.correctionOk)) {
+        rememberMistake(progress, { word: e.right, wrong: e.wrong, sentence: passage.text, ruleTitle: e.ruleTitle, rule: e.rule });
+      }
+      addXp(progress, xpEarned);
+      progress.answersTotal += total;
+      progress.answersCorrect += fixed;
+      recordActivity(progress, total);
+      await progress.save();
+
+      return { score, found, fixed, total, falsePositives, errors, xpEarned };
     },
 
     educationLiteratureAnswer: async (
