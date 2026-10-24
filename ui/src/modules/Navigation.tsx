@@ -1,6 +1,7 @@
 import {
-  IconCards,
+  IconAlphabetCyrillic,
   IconChalkboard,
+  IconFeather,
   IconHome,
   IconRepeat,
   IconSettings,
@@ -20,7 +21,8 @@ export const Navigation = () => (
     <Sidebar.GroupContent>
       <Sidebar.Menu>
         <NavigationMenuLinkItem name="Нүүр · Цээж бичиг" icon={IconHome} path={base} />
-        <NavigationMenuLinkItem name="Монгол бичгийн карт" icon={IconCards} path={`${base}/cards`} />
+        <NavigationMenuLinkItem name="Монгол бичиг · Галиг" icon={IconAlphabetCyrillic} path={`${base}/cards`} />
+        <NavigationMenuLinkItem name="Уран зохиол · ЭЕШ" icon={IconFeather} path={`${base}/literature`} />
         <NavigationMenuLinkItem name="Алдаа засах" icon={IconRepeat} path={`${base}/review`} />
         <NavigationMenuLinkItem name="AI туслах" icon={IconSparkles} path={`${base}/ai`} />
         <NavigationMenuLinkItem name="Онооны дэлгүүр" icon={IconShoppingBag} path={`${base}/shop`} />

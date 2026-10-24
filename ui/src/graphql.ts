@@ -103,13 +103,10 @@ export const CARDS_QUERY = gql(`
       meaningMn
       rule
       example
+      galigNote
       emoji
       premium
       locked
-      grade
-      reps
-      dueAt
-      due
     }
   }
 `);
@@ -283,20 +280,92 @@ export const TTS = gql(`
   }
 `);
 
-export const CARD_REVIEW = gql(`
-  mutation educationCardReview($code: String!, $typed: String, $selfGrade: Int) {
-    educationCardReview(code: $code, typed: $typed, selfGrade: $selfGrade) {
-      grade
-      nextLabel
-      dueAt
+export const SCRIPT_ANSWER = gql(`
+  mutation educationScriptAnswer($code: String!, $answer: String!, $mode: String!) {
+    educationScriptAnswer(code: $code, answer: $answer, mode: $mode) {
+      isCorrect
+      correctWord
+      galigNote
       xpEarned
-      spelling {
+      check {
         originalWord
         isCorrect
         correctedWord
         errorType
         explanationMn
       }
+    }
+  }
+`);
+
+export const LITERATURE_LIST = gql(`
+  query educationLiteratureList {
+    educationLiteratureList {
+      _id
+      title
+      author
+      genre
+      excerpt
+      source
+    }
+  }
+`);
+
+export const LITERATURE_ONE = gql(`
+  query educationLiterature($_id: String!) {
+    educationLiterature(_id: $_id) {
+      _id
+      title
+      author
+      genre
+      excerpt
+    }
+  }
+`);
+
+export const LITERATURE_ANSWER = gql(`
+  mutation educationLiteratureAnswer($_id: String!, $summary: String!) {
+    educationLiteratureAnswer(_id: $_id, summary: $summary) {
+      source
+      score
+      matchedPoints
+      missedPoints
+      deviations
+      feedbackMn
+      theme
+      correctedText
+      xpEarned
+      spelling {
+        originalWord
+        correctedWord
+        errorType
+        explanationMn
+      }
+    }
+  }
+`);
+
+export const LITERATURE_ADD = gql(`
+  mutation educationLiteratureAdd($title: String!, $author: String!, $genre: String, $excerpt: String!, $theme: String!, $keyPoints: [String!]!) {
+    educationLiteratureAdd(title: $title, author: $author, genre: $genre, excerpt: $excerpt, theme: $theme, keyPoints: $keyPoints) {
+      _id
+      title
+    }
+  }
+`);
+
+export const LITERATURE_REMOVE = gql(`
+  mutation educationLiteratureRemove($_id: String!) {
+    educationLiteratureRemove(_id: $_id)
+  }
+`);
+
+export const LITERATURE_SUGGEST = gql(`
+  mutation educationLiteratureSuggest($title: String!, $author: String!, $excerpt: String!) {
+    educationLiteratureSuggest(title: $title, author: $author, excerpt: $excerpt) {
+      theme
+      keyPoints
+      genre
     }
   }
 `);

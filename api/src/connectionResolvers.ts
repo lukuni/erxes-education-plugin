@@ -3,21 +3,21 @@ import { createGenerateModels } from "erxes-api-shared/utils";
 import type { Connection } from "mongoose";
 import {
   attemptSchema,
-  cardReviewSchema,
   cardSchema,
   lessonSchema,
+  literatureSchema,
   progressSchema,
   type IAttemptDocument,
   type ICardDocument,
-  type ICardReviewDocument,
   type ILessonDocument,
+  type ILiteratureDocument,
   type IProgressDocument,
 } from "./modules/learning/db/definitions.ts";
 import type {
   IAttemptModel,
   ICardModel,
-  ICardReviewModel,
   ILessonModel,
+  ILiteratureModel,
   IProgressModel,
 } from "./modules/learning/db/models.ts";
 
@@ -26,7 +26,7 @@ export interface IModels {
   Cards: ICardModel;
   Progress: IProgressModel;
   Attempts: IAttemptModel;
-  CardReviews: ICardReviewModel;
+  Literature: ILiteratureModel;
 }
 
 /**
@@ -50,7 +50,7 @@ const loadClasses = (db: Connection) => {
   models.Cards = db.model<ICardDocument>("education_cards", cardSchema);
   models.Progress = db.model<IProgressDocument>("education_progress", progressSchema);
   models.Attempts = db.model<IAttemptDocument>("education_attempts", attemptSchema);
-  models.CardReviews = db.model<ICardReviewDocument>("education_card_reviews", cardReviewSchema);
+  models.Literature = db.model<ILiteratureDocument>("education_literature", literatureSchema);
 
   return models;
 };

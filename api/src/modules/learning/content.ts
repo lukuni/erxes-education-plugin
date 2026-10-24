@@ -193,7 +193,79 @@ export const CARD_NOTES: Record<string, { meaningMn: string; rule: string; examp
   qagan: { meaningMn: "Улсын тэргүүн, эзэн хаан", rule: "Урт эгшиг аа хадгална: хааны, хаантай.", example: "Хаан ордондоо залрав." },
   ekeoron: { meaningMn: "Төрж өссөн нутаг, улс", rule: "Хоёр үгийг тусад нь бичнэ; нөхцөл залгахад эгшиг гээгдэнэ: эх орноо.", example: "Бид эх орноо хайрладаг." },
   naija: { meaningMn: "Дотно нөхөр", rule: "Эр үг: найзын, найзтайгаа.", example: "Найзтайгаа номын санд очлоо." },
+  amidural: { meaningMn: "Амьд байх, аж төрөх", rule: "Ь-тэй үг: амьдрал, амьдрах.", example: "Сурагчийн амьдрал сонирхолтой." },
 };
+
+/**
+ * Why the Mongolian-script spelling (shown as Galig) turns into this Cyrillic
+ * word — the "transition note" shown after every answer.
+ */
+export const GALIG_NOTES: Record<string, string> = {
+  mongol: "mongɣol → Монгол: ᠩ (ng) ба ᠭ (ɣ) нийлээд кириллээр «нг» болно; ᠣ эгшиг «о» хэвээр.",
+  usu: "usu → Ус: монгол бичигт үгийн төгсгөлд бичигддэг u эгшиг кириллд гээгдэнэ.",
+  ger: "ger → Гэр: монгол бичгийн e (ᠡ) эгшиг кириллд «э» болно.",
+  nom: "nom → Ном: үсэг бүр шууд тохирно — n → н, o → о, m → м.",
+  naran: "naran → Нар: төгсгөлийн -n нь далд н; кириллд гээгдэж, нөхцөл залгахад л гарна (наранд, нарны).",
+  sara: "sara → Сар: төгсгөлийн богино a эгшиг кириллд гээгдэнэ.",
+  mori: "mori → Морь: төгсгөлийн i эгшиг кириллд зөөлний тэмдэг «ь» болно.",
+  eke: "eke → Ээж: сонгодог бичгийн хэлбэр нь eke; орчин үеийн кирилл бичигт урт «ээ»-тэй «ээж» гэж бичнэ.",
+  abu: "abu → Аав: бичгийн хэлний a-b-u ярианд урт «аа» ба «в» болж «аав» гэж бичигдэнэ.",
+  surgaguli: "surɣaɣuli → Сургууль: ɣa-ɣu хослол урт «уу» болж, төгсгөлийн i нь «ь» болно.",
+  tngri: "tngri → Тэнгэр: монгол бичигт бичигддэггүй эгшиг кириллд «э» болж нэмэгдэнэ, төгсгөлийн i гээгдэнэ.",
+  baksi: "baɣsi → Багш: ɣ → «г», s+i нийлээд «ш» болно.",
+  sain: "sain → Сайн: ai хос эгшиг кириллд «ай» (й-тэй) болно.",
+  keuked: "keüked → Хүүхэд: k → «х», eü → урт «үү», e → «э».",
+  cinggis: "čingɣis → Чингис: č → «ч», ᠩᠭ (ng+ɣ) → «нг»; хүний нэр тул том үсгээр.",
+  qagan: "qaɣan → Хаан: q → «х», a-ɣa хослол урт «аа» болно.",
+  ekeoron: "eke oron → Эх орон: eke → «эх» (k → х, төгсгөлийн e гээгдэнэ), oron → «орон».",
+  naija: "naiǰa → Найз: ai → «ай», ǰ → «з», төгсгөлийн a гээгдэнэ.",
+  amidural: "amidural → Амьдрал: i эгшиг «ь» болж, дунд үеийн u гээгдэнэ.",
+};
+
+// ---- Literature & ЭЕШ ------------------------------------------------------------
+// Teachers add syllabus excerpts (Д.Нацагдорж, Б.Явуухулан …) from the
+// textbook on the Teacher page. The seed only ships public-domain folk
+// proverbs so the module works on a fresh install.
+
+export interface ISeedLiterature {
+  code: string;
+  title: string;
+  author: string;
+  genre: string;
+  excerpt: string;
+  theme: string;
+  keyPoints: string[];
+}
+
+export const SEED_LITERATURE: ISeedLiterature[] = [
+  {
+    code: "proverb-water",
+    title: "Ус уувал усны ёсоор",
+    author: "Ардын зүйр цэцэн үг",
+    genre: "Зүйр цэцэн үг",
+    excerpt: "Ус уувал усны ёсоор,\nНутаг сурвал нутгийн ёсоор.",
+    theme: "Шинэ газар, шинэ орчинд очвол тухайн газрын ёс заншил, дүрэм журмыг хүндэтгэж дагах хэрэгтэй.",
+    keyPoints: ["Шинэ орчин, газар", "Ёс заншлыг хүндэтгэх", "Тухайн газрын дүрмийг дагах"],
+  },
+  {
+    code: "proverb-tree",
+    title: "Ганц мод гал болдоггүй",
+    author: "Ардын зүйр цэцэн үг",
+    genre: "Зүйр цэцэн үг",
+    excerpt: "Ганц мод гал болдоггүй,\nГанц хүн айл болдоггүй.",
+    theme: "Хүн ганцаараа юу ч бүтээж чадахгүй; эв нэгдэл, хамт олон, бусдын дэмжлэг чухал.",
+    keyPoints: ["Ганцаараа хүчгүй", "Эв нэгдэл, хамт олон", "Бусадтай хамтрах"],
+  },
+  {
+    code: "proverb-mother",
+    title: "Эх нь хээр алаг бол",
+    author: "Ардын зүйр цэцэн үг",
+    genre: "Зүйр цэцэн үг",
+    excerpt: "Эх нь хээр алаг бол\nХүүхэд нь шийр алаг.",
+    theme: "Хүүхэд эцэг эхээсээ зан чанар, үйлдлийг өвлөж, тэднээс үлгэр жишээ авдаг.",
+    keyPoints: ["Эцэг эх, хүүхэд", "Зан чанар өвлөгдөх", "Үлгэр жишээ"],
+  },
+];
 
 export const SEED_CARDS: ISeedCard[] = [
   { code: "mongol", cyrillic: "Монгол", script: "ᠮᠣᠩᠭᠣᠯ", galig: "mongɣol", meaning: "Mongolia", emoji: "🇲🇳", premium: false },
@@ -210,6 +282,7 @@ export const SEED_CARDS: ISeedCard[] = [
   { code: "baksi", cyrillic: "Багш", script: "ᠪᠠᠭᠰᠢ", galig: "baɣsi", meaning: "Teacher", emoji: "🧑‍🏫", premium: false },
   { code: "sain", cyrillic: "Сайн", script: "ᠰᠠᠢᠨ", galig: "sain", meaning: "Good", emoji: "👍", premium: false },
   { code: "keuked", cyrillic: "Хүүхэд", script: "ᠬᠡᠦᠬᠡᠳ", galig: "keüked", meaning: "Child", emoji: "🧒", premium: false },
+  { code: "amidural", cyrillic: "Амьдрал", script: "ᠠᠮᠢᠳᠤᠷᠠᠯ", galig: "amidural", meaning: "Life", emoji: "🌱", premium: false },
   // Unlocked from the point shop ("Алтан карт" pack).
   { code: "cinggis", cyrillic: "Чингис", script: "ᠴᠢᠩᠭᠢᠰ", galig: "čingɣis", meaning: "Chinggis", emoji: "👑", premium: true },
   { code: "qagan", cyrillic: "Хаан", script: "ᠬᠠᠭᠠᠨ", galig: "qaɣan", meaning: "Khan, king", emoji: "🏯", premium: true },

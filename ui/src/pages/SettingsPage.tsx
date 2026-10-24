@@ -38,7 +38,7 @@ export const SettingsPage = () => {
             <Row label="API">🟢 Federated as {status.plugin} · v{status.version}</Row>
             <Row label="Tenant">{status.subdomain || "—"}</Row>
             <Row label="Нэвтэрсэн">{status.userEmail ?? status.userId ?? "—"}</Row>
-            <Row label="Chimege (TTS/STT)">
+            <Row label="Chimege TTS (заавал биш)">
               {status.chimegeEnabled ? "🟢 Монгол дуу хоолой идэвхтэй" : "⚪ Унтраалттай — CHIMEGE_TOKEN тохируулна уу"}
             </Row>
             <Row label="Gemma 4">

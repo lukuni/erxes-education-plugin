@@ -1,7 +1,15 @@
 import { GraphQLError } from "graphql";
 import { env } from "../../config.ts";
 import type { Context, IModels } from "../../connectionResolvers.ts";
-import { CARD_NOTES, DEFAULT_AVATAR, SEED_CARDS, SEED_LESSONS, SHOP_ITEMS } from "./content.ts";
+import {
+  CARD_NOTES,
+  DEFAULT_AVATAR,
+  GALIG_NOTES,
+  SEED_CARDS,
+  SEED_LESSONS,
+  SEED_LITERATURE,
+  SHOP_ITEMS,
+} from "./content.ts";
 import type { IMistake, IProgressDocument } from "./db/definitions.ts";
 
 export const XP = {
@@ -117,7 +125,16 @@ export const ensureSeed = async (models: IModels, subdomain: string) => {
     SEED_CARDS.map((card, order) => ({
       updateOne: {
         filter: { code: card.code },
-        update: { $set: { ...card, ...CARD_NOTES[card.code], order } },
+        update: { $set: { ...card, ...CARD_NOTES[card.code], galigNote: GALIG_NOTES[card.code] ?? "", order } },
+        upsert: true,
+      },
+    })),
+  );
+  await models.Literature.bulkWrite(
+    SEED_LITERATURE.map((work) => ({
+      updateOne: {
+        filter: { code: work.code },
+        update: { $set: { ...work, source: "seed" } },
         upsert: true,
       },
     })),
@@ -223,23 +240,3 @@ export const setAvatar = (progress: IProgressDocument, code: string) => {
   if (!item || !progress.owned.includes(code)) fail("Энэ аватарыг эхлээд нээнэ үү");
   progress.avatar = item?.emoji ?? DEFAULT_AVATAR;
 };
-
-// ---- Spaced repetition ------------------------------------------------------------
-
-export const SRS_DELAY_MS: Record<1 | 2 | 3, number> = {
-  1: 60_000, // Hard: again in 1 minute
-  2: 10 * 60_000, // Good: again in 10 minutes
-  3: 24 * 60 * 60_000, // Easy: tomorrow
-};
-
-export const SRS_LABEL: Record<1 | 2 | 3, string> = {
-  1: "1 минутын дараа",
-  2: "10 минутын дараа",
-  3: "Маргааш",
-};
-
-export const asGrade = (value: number): 1 | 2 | 3 => (value >= 3 ? 3 : value <= 1 ? 1 : 2);
-
-/** Spelling: exact = 3, one letter or capitalisation off = 2, otherwise 1. */
-export const spellingGrade = (correct: boolean, distance: number, caseOnly: boolean): 1 | 2 | 3 =>
-  correct ? 3 : caseOnly || distance === 1 ? 2 : 1;

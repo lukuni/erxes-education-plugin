@@ -325,3 +325,126 @@ export const generateLesson = async (topic: string, count: number) => {
   if (items.length < 2) throw new Error("Gemma did not return enough usable sentences; try again");
   return { title: lesson.title, description: lesson.description, items };
 };
+
+// ---- Literature & ЭЕШ: summary grading --------------------------------------------
+
+export interface ILiteratureRef {
+  title: string;
+  author: string;
+  excerpt: string;
+  theme: string;
+  keyPoints: string[];
+}
+
+const summarySchema = z.object({
+  score: z.coerce.number().min(0).max(100),
+  matched_points: z.array(z.string()).default([]),
+  missed_points: z.array(z.string()).default([]),
+  deviations: z.array(z.string()).default([]),
+  feedback_mn: z.string().default(""),
+});
+
+const SUMMARY_SYSTEM = `Чи бол ЭЕШ-д бэлддэг Монгол хэл, уран зохиолын багш. Сурагч уран зохиолын эхийн гол санааг
+өөрийн үгээр бичсэн. Түүнийг өгөгдсөн «жишиг утга» ба «гол санаанууд»-тай ХАТУУ харьцуулж үнэл.
+- "score": 0–100 бүхэл тоо — утгын тохирол (semantic alignment). Ерөнхий, хоосон, эхтэй холбоогүй бол бага оноо.
+- "matched_points": сурагчийн хөндсөн гол санаанууд — өгөгдсөн жагсаалтаас ЯГ хуулж бич.
+- "missed_points": хөндөөгүй гол санаанууд — өгөгдсөн жагсаалтаас ЯГ хуулж бич.
+- "deviations": сурагчийн бичсэн, эхийн утгаас зөрсөн буюу сэдвээс хазайсан өгүүлбэр/санаа (байхгүй бол хоосон).
+- "feedback_mn": 1–2 өгүүлбэр, урам өгсөн, тодорхой зөвлөгөө.
+Зөв бичгийг бүү үнэл (тусад нь шалгана). Хариуг ЗӨВХӨН JSON хэлбэрээр өг:
+{"score": 0, "matched_points": [], "missed_points": [], "deviations": [], "feedback_mn": ""}`;
+
+const STOP = new Set(["бол", "нь", "ба", "болон", "юм", "байна", "байдаг", "гэж", "гэдэг", "энэ", "тэр", "ч", "л", "бас", "их", "маш", "хэрэгтэй"]);
+
+const contentWords = (text: string) =>
+  (text.toLowerCase().match(WORD_RE) ?? []).filter((w) => w.length >= 2 && !STOP.has(w));
+
+// Mongolian is agglutinative: compare word starts (нутаг / нутгийн, ёс / ёсыг, дагах / дагана).
+const sameRoot = (a: string, b: string) => {
+  const need = Math.max(2, Math.min(4, a.length, b.length));
+  let i = 0;
+  while (i < need && a[i] === b[i]) i += 1;
+  return i >= need;
+};
+
+/** Offline fallback: root overlap with each key point and the reference theme. */
+const offlineSummary = (work: ILiteratureRef, summary: string) => {
+  const said = contentWords(summary);
+  const hits = (text: string) => {
+    const need = contentWords(text);
+    return { need: need.length, hit: need.filter((w) => said.some((s) => sameRoot(w, s))).length };
+  };
+  const covers = (text: string) => {
+    const { need, hit } = hits(text);
+    return need > 0 && (hit / need >= 0.5 || hit >= 2);
+  };
+  const matched = work.keyPoints.filter(covers);
+  const theme = hits(work.theme);
+  const themeHit = theme.need ? theme.hit / theme.need : 0;
+  let score = Math.round(
+    70 * (work.keyPoints.length ? matched.length / work.keyPoints.length : 0) + 30 * Math.min(1, themeHit * 1.5),
+  );
+  if (said.length < 5) score = Math.min(score, 40);
+  return {
+    score,
+    matched_points: matched,
+    missed_points: work.keyPoints.filter((p) => !matched.includes(p)),
+    deviations: [],
+    feedback_mn:
+      matched.length === work.keyPoints.length
+        ? "Гол санаануудыг бүгдийг нь хөндлөө. Сайн байна!"
+        : "Орхигдсон санаануудыг нэмж, эхийн утгыг илүү бүрэн илэрхийлээрэй.",
+  };
+};
+
+export const evaluateSummary = async (work: ILiteratureRef, summary: string) => {
+  if (aiEnabled()) {
+    try {
+      const answer = await callGemma(
+        SUMMARY_SYSTEM,
+        [
+          `Зохиол: «${work.title}» — ${work.author}`,
+          `Эх:\n${work.excerpt}`,
+          `Жишиг утга: ${work.theme}`,
+          `Гол санаанууд: ${JSON.stringify(work.keyPoints)}`,
+          `Сурагчийн бичсэн гол санаа:\n${summary}`,
+        ].join("\n\n"),
+      );
+      const result = summarySchema.parse(extractJson(answer));
+      // Keep only key points that really are on the list.
+      const onList = (p: string) => work.keyPoints.find((k) => normalize(k) === normalize(p));
+      const matched = result.matched_points.map(onList).filter((p): p is string => !!p);
+      return {
+        source: "gemma" as const,
+        score: Math.round(result.score),
+        matched_points: matched,
+        missed_points: work.keyPoints.filter((p) => !matched.includes(p)),
+        deviations: result.deviations,
+        feedback_mn: result.feedback_mn,
+      };
+    } catch (error) {
+      console.error("[education] Gemma summary grading failed, offline overlap:", error);
+    }
+  }
+  return { source: "offline" as const, ...offlineSummary(work, summary) };
+};
+
+const suggestSchema = z.object({
+  theme: z.string().min(1),
+  keyPoints: z.array(z.string()).min(1),
+  genre: z.string().default(""),
+});
+
+const SUGGEST_SYSTEM = `Чи бол ЭЕШ-ийн Монгол уран зохиолын багш. Өгөгдсөн эхийг уншаад:
+"theme" — эхийн гол санаа, утгыг 1–2 өгүүлбэрээр; "keyPoints" — сурагчийн хөндөх ёстой 3–5 богино гол санаа;
+"genre" — төрөл зүйл (шүлэг, өгүүллэг, зүйр цэцэн үг …). Хариуг ЗӨВХӨН JSON хэлбэрээр өг:
+{"theme": "...", "keyPoints": ["..."], "genre": "..."}`;
+
+export const suggestLiterature = async (title: string, author: string, excerpt: string) => {
+  if (!aiEnabled()) {
+    throw new Error("Gemma 4 is off: set GEMINI_API_KEY in the plugin's .env and restart the API");
+  }
+  const answer = await callGemma(SUGGEST_SYSTEM, `«${title}» — ${author}\n\n${excerpt}`);
+  const result = suggestSchema.parse(extractJson(answer));
+  return { ...result, keyPoints: result.keyPoints.slice(0, 6) };
+};

@@ -9,6 +9,10 @@ import {
   LESSON_ADD,
   LESSON_GENERATE,
   LESSON_REMOVE,
+  LITERATURE_ADD,
+  LITERATURE_LIST,
+  LITERATURE_REMOVE,
+  LITERATURE_SUGGEST,
   ME_QUERY,
   STATUS_QUERY,
 } from "../graphql";
@@ -281,6 +285,127 @@ const LessonsAdmin = () => {
   );
 };
 
+const LiteratureAdmin = () => {
+  const status = useQuery(STATUS_QUERY);
+  const list = useQuery(LITERATURE_LIST);
+  const refresh = { refetchQueries: ["educationLiteratureList"] };
+  const [suggest, suggestState] = useMutation(LITERATURE_SUGGEST);
+  const [add, addState] = useMutation(LITERATURE_ADD, refresh);
+  const [remove] = useMutation(LITERATURE_REMOVE, refresh);
+  const [form, setForm] = useState({ title: "", author: "", genre: "", excerpt: "", theme: "", keyPoints: "" });
+  const aiOn = status.data?.educationStatus.aiEnabled ?? false;
+  const set = (field: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const runSuggest = async () => {
+    try {
+      const res = await suggest({ variables: { title: form.title, author: form.author, excerpt: form.excerpt } });
+      const s = res.data?.educationLiteratureSuggest;
+      if (s) {
+        setForm((f) => ({ ...f, theme: s.theme, keyPoints: s.keyPoints.join("\n"), genre: f.genre || s.genre }));
+      }
+    } catch (e) {
+      toast({ title: "Gemma санал болгож чадсангүй", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  };
+
+  const runAdd = async () => {
+    try {
+      await add({
+        variables: {
+          title: form.title,
+          author: form.author,
+          genre: form.genre,
+          excerpt: form.excerpt,
+          theme: form.theme,
+          keyPoints: form.keyPoints.split("\n"),
+        },
+      });
+      toast({ title: "Зохиол нэмэгдлээ", description: form.title });
+      setForm({ title: "", author: "", genre: "", excerpt: "", theme: "", keyPoints: "" });
+    } catch (e) {
+      toast({ title: "Нэмж чадсангүй", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="education:grid education:gap-4 education:lg:grid-cols-2">
+      <section className="edu-glass education:flex education:flex-col education:gap-3">
+        <h2 className="edu-h2">📚 Уран зохиол нэмэх (ЭЕШ)</h2>
+        <p className="edu-muted" style={{ margin: 0, fontSize: 13 }}>
+          Сурах бичгээс эхийг хуулж оруулна (жишээ нь Д.Нацагдорж, Б.Явуухулан). Gemma 4 гол санааг санал болгоно — шалгаад засаарай.
+        </p>
+        <div className="education:grid education:gap-2 education:md:grid-cols-3">
+          <input className="edu-input" placeholder="Зохиолын нэр" value={form.title} onChange={set("title")} />
+          <input className="edu-input" placeholder="Зохиолч" value={form.author} onChange={set("author")} />
+          <input className="edu-input" placeholder="Төрөл (шүлэг…)" value={form.genre} onChange={set("genre")} />
+        </div>
+        <textarea className="edu-textarea" placeholder="Эх (мөр бүрийг шинэ мөрөнд)" value={form.excerpt} onChange={set("excerpt")} />
+        <button
+          type="button"
+          className="edu-btn edu-btn--amber edu-btn--sm"
+          disabled={!aiOn || !form.excerpt.trim() || suggestState.loading}
+          onClick={() => void runSuggest()}
+          title={aiOn ? "" : "GEMINI_API_KEY хэрэгтэй"}
+        >
+          {suggestState.loading ? "Gemma уншиж байна…" : "✨ Gemma-аар гол санааг санал болгох"}
+        </button>
+        <textarea
+          className="edu-textarea"
+          style={{ minHeight: 80 }}
+          placeholder="Жишиг утга / гол санаа (сурагчийн хариултыг үүнтэй харьцуулна)"
+          value={form.theme}
+          onChange={set("theme")}
+        />
+        <textarea
+          className="edu-textarea"
+          style={{ minHeight: 90 }}
+          placeholder={"Гол санаанууд — мөр бүрт нэг\nЭх орны байгаль\nЭх орноо хайрлах"}
+          value={form.keyPoints}
+          onChange={set("keyPoints")}
+        />
+        <button
+          type="button"
+          className="edu-btn edu-btn--mint"
+          disabled={!form.title.trim() || !form.excerpt.trim() || !form.theme.trim() || !form.keyPoints.trim() || addState.loading}
+          onClick={() => void runAdd()}
+        >
+          + Зохиол нэмэх
+        </button>
+      </section>
+
+      <section className="edu-glass education:flex education:flex-col education:gap-2">
+        <h2 className="edu-h2">Зохиолууд</h2>
+        {list.loading ? (
+          <LoadingBlock height={120} />
+        ) : list.error ? (
+          <ErrorBlock message={list.error.message} onRetry={() => list.refetch()} />
+        ) : (
+          (list.data?.educationLiteratureList ?? []).map((work) => (
+            <div key={work._id} className="edu-between" style={{ borderTop: "1px solid var(--edu-line)", paddingTop: 10 }}>
+              <span>
+                <strong>{work.title}</strong>{" "}
+                <span className="edu-muted" style={{ fontSize: 13 }}>
+                  · {work.author} · {work.source}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="edu-btn edu-btn--ghost edu-btn--sm"
+                onClick={() => {
+                  if (window.confirm(`«${work.title}»-г устгах уу?`)) void remove({ variables: { _id: work._id } });
+                }}
+              >
+                🗑
+              </button>
+            </div>
+          ))
+        )}
+      </section>
+    </div>
+  );
+};
+
 export const TeacherPage = () => {
   const me = useQuery(ME_QUERY);
   const canTeach = me.data?.educationMe.canTeach;
@@ -301,6 +426,7 @@ export const TeacherPage = () => {
         <>
           <ClassView />
           <LessonsAdmin />
+          <LiteratureAdmin />
         </>
       )}
     </Shell>

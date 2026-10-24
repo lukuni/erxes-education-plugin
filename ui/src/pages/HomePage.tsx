@@ -76,7 +76,8 @@ const Tiles = () => {
   const canTeach = data?.educationMe.canTeach ?? false;
 
   const tiles = [
-    { to: "cards", emoji: "🎴", bg: "#ece9ff", title: "Монгол бичиг", text: "Флаш карт + Галиг" },
+    { to: "cards", emoji: "ᠮ", bg: "#ece9ff", title: "Монгол бичиг · Галиг", text: "Сонгох эсвэл кириллээр бичих" },
+    { to: "literature", emoji: "📚", bg: "#e7f0ff", title: "Уран зохиол · ЭЕШ", text: "Гол санааг өөрийн үгээр" },
     {
       to: "review",
       emoji: "🔁",

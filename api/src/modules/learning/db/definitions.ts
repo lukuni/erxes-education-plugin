@@ -55,6 +55,7 @@ export interface ICard {
   meaningMn: string;
   rule: string;
   example: string;
+  galigNote: string;
   emoji: string;
   premium: boolean;
   order: number;
@@ -73,6 +74,7 @@ export const cardSchema = schemaWrapper(
     meaningMn: { type: String, default: "" },
     rule: { type: String, default: "" },
     example: { type: String, default: "" },
+    galigNote: { type: String, default: "" },
     emoji: { type: String, default: "" },
     premium: { type: Boolean, default: false },
     order: { type: Number, default: 0 },
@@ -177,28 +179,34 @@ export const attemptSchema = schemaWrapper(
   }),
 );
 
-// Spaced repetition state per student and card.
-export interface ICardReview {
-  userId: string;
-  cardCode: string;
-  grade: number;
-  dueAt: Date;
-  reps: number;
-  lapses: number;
-  lastReviewedAt: Date;
+// Literature & ЭЕШ: an excerpt plus the reference meaning students are graded against.
+export interface ILiterature {
+  code?: string;
+  title: string;
+  author: string;
+  genre: string;
+  excerpt: string;
+  theme: string;
+  keyPoints: string[];
+  source: "seed" | "teacher";
+  createdBy?: string;
+  createdAt: Date;
 }
-export interface ICardReviewDocument extends ICardReview, Document<string> {
+export interface ILiteratureDocument extends ILiterature, Document<string> {
   _id: string;
 }
 
-export const cardReviewSchema = schemaWrapper(
+export const literatureSchema = schemaWrapper(
   new Schema({
-    userId: { type: String, required: true, index: true },
-    cardCode: { type: String, required: true },
-    grade: { type: Number, default: 0 },
-    dueAt: { type: Date, default: Date.now, index: true },
-    reps: { type: Number, default: 0 },
-    lapses: { type: Number, default: 0 },
-    lastReviewedAt: { type: Date, default: Date.now },
-  }).index({ userId: 1, cardCode: 1 }, { unique: true }),
+    code: { type: String, index: true },
+    title: { type: String, required: true },
+    author: { type: String, default: "" },
+    genre: { type: String, default: "" },
+    excerpt: { type: String, required: true },
+    theme: { type: String, required: true },
+    keyPoints: { type: [String], default: [] },
+    source: { type: String, enum: ["seed", "teacher"], default: "teacher" },
+    createdBy: { type: String },
+    createdAt: { type: Date, default: Date.now },
+  }),
 );

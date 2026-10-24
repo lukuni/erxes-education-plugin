@@ -24,13 +24,14 @@
 | 🔍 | **Spot & Circle the Mistake**: өгүүлбэр дэх алдаатай үгийг олж дарахад гараар зурсан мэт **дугуйлна**, зөв хэлбэр нь гарч ирнэ | ✅ |
 | 💡 | Хариулт бүрийн дараа **дүрмийн тайлбар**, зөвд confetti + дуу, буруу бол зөөлөн shake | ✅ |
 | 🔁 | **Mistake Review Mode**: алдсан үг бүр дүрмийн сануулгатай буцаж гарна, бүгдийг зөв хариулах хүртэл (100% бататгал) | ✅ |
-| 🧠 | **SRS флаш карт (Spaced Repetition)**: Chimege-ээр сонсоод **бичнэ**, бичлэгийг толь бичгээр хатуу шалгаж үнэлнэ. Үнэлгээ: 1 Хэцүү → 1 минут, 2 Сайн → 10 минут, 3 Амархан → маргааш. Ар тал: утга, зөв бичлэг, дүрэм, жишээ өгүүлбэр | ✅ |
-| 🎴 | **Монгол бичгийн карт**: босоо Монгол бичиг, **3D flip**, **Галиг toggle** | ✅ |
-| 🔊 | **Chimege TTS**: бүх дуудлага Монгол дуу хоолойгоор | ✅ (`CHIMEGE_TOKEN`) |
+| ᠮ | **Модуль 1 · Монгол бичиг + Галиг**: босоо Монгол бичиг ба галигийг харуулж **(А) 4 кирилл хувилбараас сонгох** (нэг нь ойролцоо алдаатай хувилбар) эсвэл **(Б) кириллээр бичих**. Хариулт бүрийн дараа **галиг → кирилл хувирлын тайлбар** (жишээ нь *mongɣol → Монгол*: ᠩ+ᠭ → «нг») | ✅ |
+| 📚 | **Модуль 2 · Уран зохиол & ЭЕШ**: эхийг уншаад гол санааг **өөрийн үгээр бичнэ**. **Утгын тохирлын оноо (0–100%)**, хөндсөн / орхигдсон гол санаа, сэдвээс хазайлт, мөн бичвэрийн **хатуу зөв бичгийн шалгалт**. Багш сурах бичгээс эх оруулж, Gemma 4 гол санааг санал болгоно | ✅ |
+| 🔊 | **Chimege TTS (заавал биш)**: «Сонсох» товч — үндсэн урсгал 100% текстэн, дуунаас хамаарахгүй | ✅ (`CHIMEGE_TOKEN`) |
 | 🔥 | **GitHub маягийн идэвхийн heatmap**, өдөр тутмын streak, түвшин, XP | ✅ |
 | 🛍️ | **Point Shop**: аватар, **Streak хамгаалалт** (тасарсан өдрийг нөхнө), **Алтан карт** (тусгай Монгол бичгийн карт нээнэ), багшийн урамшуулал | ✅ |
 | ✨ | **Хатуу горимын AI редактор**: үг бүрийг **Монгол хэлний Hunspell толь бичгээр** шалгана, толь бичигт байхгүй үгийг хэзээ ч зөв гэж үзэхгүй. Gemma 4 нь агуулгын алдаа (цас/цаас, том үсэг) болон тайлбарыг нэмнэ. Хариу нь `{original_word, is_correct, corrected_word, error_type, explanation_mn}` JSON | ✅ |
 | 🧑‍🏫 | **Багшийн самбар**: сурагчдын түвшин, streak, нарийвчлал, **ангийн хамгийн их алддаг үгс** | ✅ |
+| 📝 | **ЭЕШ-ийн утгын үнэлгээ (Gemma 4)**: сурагчийн бичсэн гол санааг жишиг утга, гол санаануудтай харьцуулж оноо, орхигдсон санаа, хазайлтыг гаргана (Gemma-гүй үед үгийн язгуурын давхцлаар офлайн үнэлнэ) | ✅ |
 | 🪄 | **Gemma 4-өөр цээж бичиг үүсгэх**: багш сэдэв бичихэд Gemma шинэ хичээл зохиоод хадгална | ✅ (API key хэрэгтэй) |
 | ✍️ | Багш гараар хичээл нэмэх / устгах | ✅ |
 
@@ -63,6 +64,7 @@
 
 ## Chimege интеграц
 
+- Зөвхөн нэмэлт «🔊 Сонсох» товчинд ашиглана; түлхүүргүй үед ч бүх үнэлгээ бүрэн ажиллана.
 - **TTS:** `CHIMEGE_TTS_URL` (default `https://api.chimege.com/v1.2/synthesize`). Карт, цээж бичгийн өгүүлбэр, жишээ өгүүлбэрийг Монгол дуу хоолойгоор (speed 0.95) уншина. Текст бүрийн аудиог серверт кэшлэнэ.
 - `Token` header-ийг зөвхөн сервер илгээнэ, browser хэзээ ч түлхүүрийг харахгүй. Шалгах: `pnpm --filter education_api chimege:check`. Түлхүүр тохируулаагүй бол browser-ийн дуу хоолой руу автоматаар шилжинэ.
 
@@ -144,15 +146,16 @@ api/src/
   graphql/schema.ts             typeDefs + resolvers
   modules/learning/
     content.ts                  seed lessons, Mongolian script cards, shop items
-    service.ts                  XP, levels, streak + freeze logic, mistakes, shop, SRS grading
+    service.ts                  XP, levels, streak + freeze logic, mistakes, shop, seeding
     spell.ts                    Hunspell Mongolian dictionary, weighted Levenshtein, error types
-    ai.ts                       strict checker (dictionary + Gemma 4), lesson generator
+    ai.ts                       strict checker (dictionary + Gemma 4), lesson generator, ЭЕШ summary grading
     chimege.ts                  Chimege TTS client
     db/definitions.ts           Mongoose schemas
 ui/src/
   pages/                        Home, Dictation, Review, Cards, Shop, AI, Teacher, Settings
   components/Exercise.tsx       PickItem, SpotItem (circle), ReviewRun, AudioPanel
-  components/SrsDeck.tsx        spaced-repetition cards: listen → type → grade
+  pages/CardsPage.tsx           Mongolian script + Galig: choose / type the Cyrillic word
+  pages/LiteraturePage.tsx      literature & ЭЕШ: read, summarise, semantic + spelling score
   lib/voice.ts                  Chimege playback with browser-voice fallback
   components/Heatmap.tsx        GitHub-style streak grid
   lib/fx.ts, lib/speech.ts      confetti, sounds, speech synthesis

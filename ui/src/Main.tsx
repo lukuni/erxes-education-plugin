@@ -13,6 +13,7 @@ const HomePage = page(() => import("./pages/HomePage"), "HomePage");
 const DictationPage = page(() => import("./pages/DictationPage"), "DictationPage");
 const ReviewPage = page(() => import("./pages/ReviewPage"), "ReviewPage");
 const CardsPage = page(() => import("./pages/CardsPage"), "CardsPage");
+const LiteraturePage = page(() => import("./pages/LiteraturePage"), "LiteraturePage");
 const ShopPage = page(() => import("./pages/ShopPage"), "ShopPage");
 const AiPage = page(() => import("./pages/AiPage"), "AiPage");
 const TeacherPage = page(() => import("./pages/TeacherPage"), "TeacherPage");
@@ -28,6 +29,8 @@ export const Education = () => (
         <Route path="dictation/:lessonId" element={<DictationPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="cards" element={<CardsPage />} />
+        <Route path="literature" element={<LiteraturePage />} />
+        <Route path="literature/:workId" element={<LiteraturePage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="ai" element={<AiPage />} />
         <Route path="teacher" element={<TeacherPage />} />

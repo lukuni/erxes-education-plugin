@@ -2,7 +2,14 @@ import { gql } from "graphql-tag";
 import { manifest, env } from "../config.ts";
 import type { Context } from "../connectionResolvers.ts";
 import { PRACTICE, TEACH } from "../permissions.ts";
-import { aiEnabled, checkAnswer, checkText, generateLesson } from "../modules/learning/ai.ts";
+import {
+  aiEnabled,
+  checkAnswer,
+  checkText,
+  evaluateSummary,
+  generateLesson,
+  suggestLiterature,
+} from "../modules/learning/ai.ts";
 import { chimegeEnabled, synthesize } from "../modules/learning/chimege.ts";
 import { SHOP_ITEMS, type ILessonItem } from "../modules/learning/content.ts";
 import {
@@ -19,10 +26,6 @@ import {
   rememberMistake,
   requireUser,
   setAvatar,
-  SRS_DELAY_MS,
-  SRS_LABEL,
-  asGrade,
-  spellingGrade,
 } from "../modules/learning/service.ts";
 
 // Every type and operation is prefixed with the plugin name: the gateway
@@ -73,14 +76,10 @@ export const typeDefs = gql`
     meaningMn: String!
     rule: String!
     example: String!
+    galigNote: String!
     emoji: String!
     premium: Boolean!
     locked: Boolean!
-    "Spaced repetition: last grade (0 = never studied) and when the card is due."
-    grade: Int!
-    reps: Int!
-    dueAt: String
-    due: Boolean!
   }
 
   "Strict per-word verdict. reportJson on EducationAiCheck carries the same data in snake_case."
@@ -98,12 +97,43 @@ export const typeDefs = gql`
     mimeType: String!
   }
 
-  type EducationCardReviewResult {
-    grade: Int!
-    nextLabel: String!
-    dueAt: String!
-    spelling: EducationWordCheck
+  "Mongolian script task: answer by choosing (choice) or typing (typing) the Cyrillic word."
+  type EducationScriptResult {
+    isCorrect: Boolean!
+    correctWord: String!
+    galigNote: String!
+    check: EducationWordCheck!
     xpEarned: Int!
+  }
+
+  type EducationLiterature {
+    _id: String!
+    title: String!
+    author: String!
+    genre: String!
+    excerpt: String!
+    theme: String!
+    keyPoints: [String!]!
+    source: String!
+  }
+
+  type EducationSummaryResult {
+    source: String!
+    score: Int!
+    matchedPoints: [String!]!
+    missedPoints: [String!]!
+    deviations: [String!]!
+    feedbackMn: String!
+    theme: String!
+    spelling: [EducationWordCheck!]!
+    correctedText: String!
+    xpEarned: Int!
+  }
+
+  type EducationLiteratureSuggestion {
+    theme: String!
+    keyPoints: [String!]!
+    genre: String!
   }
 
   type EducationMistake {
@@ -235,6 +265,8 @@ export const typeDefs = gql`
     educationMe: EducationProgress!
     educationShopItems: [EducationShopItem!]!
     educationClassOverview: EducationClassOverview!
+    educationLiteratureList: [EducationLiterature!]!
+    educationLiterature(_id: String!): EducationLiterature
   }
 
   type Mutation {
@@ -245,7 +277,11 @@ export const typeDefs = gql`
     educationSetAvatar(code: String!): EducationProgress!
     educationAiCheck(text: String!): EducationAiCheck!
     educationTts(text: String!): EducationAudio!
-    educationCardReview(code: String!, typed: String, selfGrade: Int): EducationCardReviewResult!
+    educationScriptAnswer(code: String!, answer: String!, mode: String!): EducationScriptResult!
+    educationLiteratureAnswer(_id: String!, summary: String!): EducationSummaryResult!
+    educationLiteratureAdd(title: String!, author: String!, genre: String, excerpt: String!, theme: String!, keyPoints: [String!]!): EducationLiterature!
+    educationLiteratureRemove(_id: String!): Boolean!
+    educationLiteratureSuggest(title: String!, author: String!, excerpt: String!): EducationLiteratureSuggestion!
     educationLessonAdd(title: String!, description: String, emoji: String, items: [EducationLessonItemInput!]!): EducationLesson!
     educationLessonGenerate(topic: String!, count: Int): EducationLesson!
     educationLessonRemove(_id: String!): Boolean!
@@ -377,23 +413,14 @@ export const resolvers = {
       const progress = await getProgress(context.models, user);
       const unlocked = hasGoldenPack(progress);
       const cards = await context.models.Cards.find().sort({ order: 1 }).limit(200).lean();
-      const reviews = await context.models.CardReviews.find({ userId: user._id }).lean();
-      const byCode = new Map(reviews.map((r) => [r.cardCode, r]));
-      const now = Date.now();
-      return cards.map((card) => {
-        const review = byCode.get(card.code);
-        return {
-          ...card,
-          meaningMn: card.meaningMn ?? "",
-          rule: card.rule ?? "",
-          example: card.example ?? "",
-          locked: card.premium && !unlocked,
-          grade: review?.grade ?? 0,
-          reps: review?.reps ?? 0,
-          dueAt: review?.dueAt?.toISOString?.() ?? null,
-          due: !review || review.dueAt.getTime() <= now,
-        };
-      });
+      return cards.map((card) => ({
+        ...card,
+        meaningMn: card.meaningMn ?? "",
+        rule: card.rule ?? "",
+        example: card.example ?? "",
+        galigNote: card.galigNote ?? "",
+        locked: card.premium && !unlocked,
+      }));
     },
 
     educationMe: async (_parent: unknown, _args: unknown, context: Context) => {
@@ -406,6 +433,16 @@ export const resolvers = {
     educationShopItems: async (_parent: unknown, _args: unknown, context: Context) => {
       await practice(context);
       return SHOP_ITEMS;
+    },
+
+    educationLiteratureList: async (_parent: unknown, _args: unknown, context: Context) => {
+      await practice(context);
+      return context.models.Literature.find().sort({ source: 1, createdAt: 1 }).limit(200).lean();
+    },
+
+    educationLiterature: async (_parent: unknown, { _id }: { _id: string }, context: Context) => {
+      await practice(context);
+      return context.models.Literature.findById(_id).lean();
     },
 
     educationClassOverview: async (_parent: unknown, _args: unknown, context: Context) => {
@@ -546,63 +583,132 @@ export const resolvers = {
       return progressView(progress, await canTeach(context));
     },
 
-    educationCardReview: async (
+    educationScriptAnswer: async (
       _parent: unknown,
-      { code, typed, selfGrade }: { code: string; typed?: string | null; selfGrade?: number | null },
+      { code, answer, mode }: { code: string; answer: string; mode: string },
       context: Context,
     ) => {
       const user = await practice(context);
-      const card = (await context.models.Cards.findOne({ code }).lean()) ?? fail("Карт олдсонгүй");
+      if (mode !== "choice" && mode !== "typing") fail("mode нь choice эсвэл typing байна");
+      if (!answer.trim() || answer.length > 100) fail("Хариултаа оруулна уу");
+      const card = (await context.models.Cards.findOne({ code }).lean()) ?? fail("Үг олдсонгүй");
       const progress = await getProgress(context.models, user);
-      if (card.premium && !hasGoldenPack(progress)) fail("Энэ картыг дэлгүүрээс нээнэ үү");
+      if (card.premium && !hasGoldenPack(progress)) fail("Энэ үгийг дэлгүүрээс нээнэ үү");
 
-      // Grade from what the student actually did; self-grade only when nothing was checked.
-      const grades: (1 | 2 | 3)[] = [];
-      let spelling: Awaited<ReturnType<typeof checkAnswer>> | null = null;
-      if (typed?.trim()) {
-        // Proper nouns (Монгол, Чингис …) must keep their capital letter.
-        const properNoun = ["mongol", "cinggis"].includes(card.code);
-        spelling = await checkAnswer(typed, card.cyrillic, properNoun);
-        grades.push(spellingGrade(spelling.is_correct, spelling.distance, spelling.caseOnly));
-        if (!spelling.is_correct) {
-          rememberMistake(progress, {
-            word: card.cyrillic,
-            wrong: typed.trim(),
-            sentence: card.example ?? "",
-            ruleTitle: "Флаш карт",
-            rule: card.rule ?? spelling.explanation_mn,
-          });
-        }
+      // Proper nouns (Монгол, Чингис) keep their capital letter when typed.
+      const properNoun = ["mongol", "cinggis"].includes(card.code);
+      const check = await checkAnswer(answer, card.cyrillic, mode === "typing" && properNoun);
+      const xpEarned = check.is_correct ? (mode === "typing" ? 15 : 10) : 2;
+      if (!check.is_correct) {
+        rememberMistake(progress, {
+          word: card.cyrillic,
+          wrong: answer.trim(),
+          sentence: card.example ?? "",
+          ruleTitle: "Монгол бичиг → кирилл",
+          rule: card.galigNote ?? check.explanation_mn,
+        });
       }
-      if (grades.length === 0) {
-        if (!selfGrade) fail("Үнэлгээ (1–3) өгнө үү");
-        grades.push(asGrade(selfGrade ?? 1));
-      }
-      const grade = asGrade(Math.min(...grades));
-      const dueAt = new Date(Date.now() + SRS_DELAY_MS[grade]);
-
-      await context.models.CardReviews.updateOne(
-        { userId: user._id, cardCode: code },
-        {
-          $set: { grade, dueAt, lastReviewedAt: new Date() },
-          $inc: { reps: 1, lapses: grade === 1 ? 1 : 0 },
-        },
-        { upsert: true },
-      );
-
-      const xpEarned = grade === 3 ? XP.card + 1 : 1;
       addXp(progress, xpEarned);
+      progress.answersTotal += 1;
+      progress.answersCorrect += check.is_correct ? 1 : 0;
       progress.cardsStudied += 1;
       recordActivity(progress, 1);
       await progress.save();
 
       return {
-        grade,
-        nextLabel: SRS_LABEL[grade],
-        dueAt: dueAt.toISOString(),
-        spelling: spelling ? wordView(spelling) : null,
+        isCorrect: check.is_correct,
+        correctWord: card.cyrillic,
+        galigNote: card.galigNote ?? "",
+        check: wordView(check),
         xpEarned,
       };
+    },
+
+    educationLiteratureAnswer: async (
+      _parent: unknown,
+      { _id, summary }: { _id: string; summary: string },
+      context: Context,
+    ) => {
+      const user = await practice(context);
+      const text = summary.trim();
+      if (text.length < 10) fail("Гол санаагаа дор хаяж нэг өгүүлбэрээр бичнэ үү");
+      if (text.length > 3000) fail("3000 тэмдэгтээс богино бичнэ үү");
+      const work = (await context.models.Literature.findById(_id).lean()) ?? fail("Зохиол олдсонгүй");
+
+      // Meaning and spelling are graded independently, both from the typed text.
+      const [meaning, spelling] = await Promise.all([evaluateSummary(work, text), checkText(context.models, text)]);
+      const wrong = spelling.words.filter((w) => !w.is_correct);
+
+      const progress = await getProgress(context.models, user);
+      const xpEarned = Math.round(meaning.score / 10) + (wrong.length === 0 ? 5 : 0);
+      addXp(progress, xpEarned);
+      recordActivity(progress, 1);
+      for (const w of wrong.slice(0, 5)) {
+        rememberMistake(progress, {
+          word: w.corrected_word || w.original_word,
+          wrong: w.original_word,
+          sentence: "",
+          ruleTitle: w.error_type,
+          rule: w.explanation_mn,
+        });
+      }
+      await progress.save();
+
+      return {
+        source: meaning.source,
+        score: meaning.score,
+        matchedPoints: meaning.matched_points,
+        missedPoints: meaning.missed_points,
+        deviations: meaning.deviations,
+        feedbackMn: meaning.feedback_mn,
+        theme: work.theme,
+        spelling: wrong.map(wordView),
+        correctedText: spelling.corrected,
+        xpEarned,
+      };
+    },
+
+    educationLiteratureAdd: async (
+      _parent: unknown,
+      args: { title: string; author: string; genre?: string; excerpt: string; theme: string; keyPoints: string[] },
+      context: Context,
+    ) => {
+      const user = await teach(context);
+      const keyPoints = args.keyPoints.map((k) => k.trim()).filter(Boolean).slice(0, 8);
+      if (!args.title.trim() || !args.excerpt.trim() || !args.theme.trim()) fail("Нэр, эх, гол санааг бөглөнө үү");
+      if (keyPoints.length === 0) fail("Дор хаяж нэг гол санаа оруулна уу");
+      if (args.excerpt.length > 6000) fail("Эх 6000 тэмдэгтээс богино байна");
+      const work = await context.models.Literature.create({
+        title: args.title.trim(),
+        author: args.author.trim(),
+        genre: args.genre?.trim() ?? "",
+        excerpt: args.excerpt.trim(),
+        theme: args.theme.trim(),
+        keyPoints,
+        source: "teacher",
+        createdBy: user._id,
+      });
+      return work.toObject();
+    },
+
+    educationLiteratureRemove: async (_parent: unknown, { _id }: { _id: string }, context: Context) => {
+      await teach(context);
+      const { deletedCount } = await context.models.Literature.deleteOne({ _id });
+      return deletedCount > 0;
+    },
+
+    educationLiteratureSuggest: async (
+      _parent: unknown,
+      { title, author, excerpt }: { title: string; author: string; excerpt: string },
+      context: Context,
+    ) => {
+      await teach(context);
+      if (!excerpt.trim()) fail("Эхээ оруулна уу");
+      try {
+        return await suggestLiterature(title.trim(), author.trim(), excerpt.trim().slice(0, 6000));
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : "Gemma failed");
+      }
     },
 
     educationShopBuy: async (_parent: unknown, { code }: { code: string }, context: Context) => {

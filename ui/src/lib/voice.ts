@@ -62,8 +62,38 @@ export const useVoice = () => {
     [browserSpeak, chimege, failed, tts],
   );
 
+  /** Reads several lines one after another (poems); stops on the first failure. */
+  const speakAll = useCallback(
+    async (lines: string[]) => {
+      const parts = lines.map((l) => l.trim()).filter(Boolean);
+      if (!chimege || failed) {
+        browserSpeak(parts.join(". "), 0.85);
+        return;
+      }
+      for (const part of parts) {
+        await speak(part);
+        const player = audio.current;
+        if (!player) return;
+        await new Promise<void>((resolve) => {
+          if (player.ended || player.paused) return resolve();
+          player.addEventListener("ended", () => resolve(), { once: true });
+          player.addEventListener("pause", () => resolve(), { once: true });
+        });
+        if (audio.current !== player || !player.ended) return; // stopped by the user
+      }
+    },
+    [browserSpeak, chimege, failed, speak],
+  );
+
+  const stop = useCallback(() => {
+    audio.current?.pause();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  }, []);
+
   return {
     speak,
+    speakAll,
+    stop,
     ready: !status.loading,
     speaking: playing || browser.speaking,
     loading,

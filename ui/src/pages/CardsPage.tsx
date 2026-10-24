@@ -1,13 +1,15 @@
 import { useMutation, useQuery } from "@apollo/client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { IconCards } from "@tabler/icons-react";
-import { toast } from "erxes-ui";
-import { BASE, ErrorBlock, LoadingBlock, Shell } from "../components/Shell";
-import { CARDS_QUERY, CARD_STUDIED } from "../graphql";
-import { confettiFrom, sound } from "../lib/fx";
+import { IconAlphabetCyrillic } from "@tabler/icons-react";
+import type { EducationCardsQuery } from "~/gql/graphql";
+import { BASE, EmptyBlock, ErrorBlock, LoadingBlock, Shell } from "../components/Shell";
+import { CARDS_QUERY, SCRIPT_ANSWER } from "../graphql";
+import { confettiFrom, shuffle, sound } from "../lib/fx";
 import { useVoice } from "../lib/voice";
-import { SrsDeck } from "../components/SrsDeck";
+
+type Word = EducationCardsQuery["educationCards"][number];
+type Mode = "choice" | "typing";
 
 const FONT_ID = "edu-mongolian-font";
 
@@ -23,165 +25,293 @@ const useMongolianFont = () => {
   }, []);
 };
 
-type Mode = "srs" | "script";
+// A believable misspelling of the right answer, so the choice tests spelling, not just recognition.
+const NEAR_MISSES: [RegExp, string][] = [
+  [/ь/g, ""],
+  [/уу/g, "у"],
+  [/аа/g, "а"],
+  [/ээ/g, "э"],
+  [/үү/g, "ү"],
+  [/э/g, "а"],
+  [/г/g, "гг"],
+  [/н$/g, ""],
+];
 
-export const CardsPage = () => {
-  useMongolianFont();
-  const { data, loading, error, refetch } = useQuery(CARDS_QUERY);
-  const [studied] = useMutation(CARD_STUDIED, { refetchQueries: ["educationMe"] });
-  const { speak } = useVoice();
-  const [mode, setMode] = useState<Mode>("srs");
-  const [index, setIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [galig, setGalig] = useState(true);
-  const [learned, setLearned] = useState<string[]>([]);
+const nearMiss = (word: string) => {
+  for (const [pattern, replacement] of NEAR_MISSES) {
+    const variant = word.replace(pattern, replacement);
+    if (variant !== word && variant.length > 1) return variant;
+  }
+  return `${word}ь`;
+};
 
-  const cards = data?.educationCards ?? [];
-  const open = cards.filter((c) => !c.locked);
-  const card = open[index % Math.max(open.length, 1)];
+const optionsFor = (word: Word, all: Word[], seed: number) => {
+  const others = shuffle(
+    all.filter((w) => w.code !== word.code).map((w) => w.cyrillic),
+    seed,
+  ).slice(0, 2);
+  return shuffle([word.cyrillic, nearMiss(word.cyrillic), ...others], seed + 1).slice(0, 4);
+};
 
-  const go = (step: number) => {
-    setFlipped(false);
-    setIndex((i) => (i + step + open.length) % open.length);
+const useShake = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const shake = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.classList.remove("edu-shake");
+    void el.offsetWidth;
+    el.classList.add("edu-shake");
   };
+  return { ref, shake };
+};
 
-  const markLearned = async (element: HTMLElement) => {
-    if (!card) return;
-    sound("good");
-    confettiFrom(element);
-    setLearned((l) => (l.includes(card.code) ? l : [...l, card.code]));
-    try {
-      await studied({ variables: { code: card.code } });
-      toast({ title: "+2 XP", description: `«${card.cyrillic}» картыг давтлаа` });
-    } catch (e) {
-      toast({ title: "Хадгалж чадсангүй", description: e instanceof Error ? e.message : "", variant: "destructive" });
+const ScriptTask = ({
+  word,
+  all,
+  mode,
+  showGalig,
+  seed,
+  onDone,
+}: {
+  word: Word;
+  all: Word[];
+  mode: Mode;
+  showGalig: boolean;
+  seed: number;
+  onDone: (correct: boolean) => void;
+}) => {
+  const [answer, { data, loading, error }] = useMutation(SCRIPT_ANSWER, { refetchQueries: ["educationMe"] });
+  const voice = useVoice();
+  const { ref, shake } = useShake();
+  const [typed, setTyped] = useState("");
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [hint, setHint] = useState(false);
+  const options = useMemo(() => optionsFor(word, all, seed), [word, all, seed]);
+  const result = data?.educationScriptAnswer;
+
+  const submit = async (value: string, element: HTMLElement | null) => {
+    if (result || loading || !value.trim()) return;
+    setChosen(value);
+    const res = await answer({ variables: { code: word.code, answer: value, mode } }).catch(() => null);
+    const ok = res?.data?.educationScriptAnswer.isCorrect;
+    if (ok) {
+      sound("good");
+      confettiFrom(element);
+    } else if (res) {
+      sound("bad");
+      shake();
     }
-    go(1);
   };
 
   return (
-    <Shell title="Флаш карт" icon={IconCards}>
-      <div className="edu-row" style={{ justifyContent: "center" }}>
-        <button
-          type="button"
-          className={`edu-btn edu-btn--sm ${mode === "srs" ? "" : "edu-btn--ghost"}`}
-          onClick={() => setMode("srs")}
-        >
-          🧠 Давтах (SRS)
-        </button>
-        <button
-          type="button"
-          className={`edu-btn edu-btn--sm ${mode === "script" ? "" : "edu-btn--ghost"}`}
-          onClick={() => setMode("script")}
-        >
-          ᠮ Монгол бичиг + Галиг
-        </button>
-      </div>
-      {loading ? (
-        <LoadingBlock height={420} />
-      ) : error ? (
-        <ErrorBlock message={error.message} onRetry={() => refetch()} />
-      ) : !card ? (
-        <ErrorBlock message="Карт алга" />
-      ) : mode === "srs" ? (
-        <SrsDeck cards={cards} />
-      ) : (
-        <>
-          <section className="edu-glass edu-stage edu-rise">
-            <div className="edu-between" style={{ width: "100%" }}>
-              <span className="edu-tag">
-                {index % open.length + 1} / {open.length} · Давтсан {learned.length}
+    <div className="edu-stage edu-rise">
+      <span className={`edu-tag ${mode === "choice" ? "" : "edu-tag--mint"}`}>
+        {mode === "choice" ? "А · Монгол бичгийг кирилл үгтэй тааруул" : "Б · Монгол бичгийг кириллээр бич"}
+      </span>
+
+      <div className="edu-glass education:flex education:items-center education:gap-6" style={{ padding: "24px 36px" }}>
+        <span className="edu-script" lang="mn-Mong" style={{ fontSize: 80 }}>
+          {word.script}
+        </span>
+        <div className="education:flex education:flex-col education:items-start education:gap-2">
+          {showGalig && (
+            <>
+              <span className="edu-muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                ГАЛИГ
               </span>
-              <label className="edu-switch">
-                <input type="checkbox" checked={galig} onChange={(e) => setGalig(e.target.checked)} />
-                Галиг
-              </label>
-            </div>
+              <span className="edu-galig" style={{ fontSize: 26 }}>
+                {word.galig}
+              </span>
+            </>
+          )}
+          <button type="button" className="edu-btn edu-btn--ghost edu-btn--sm" onClick={() => setHint(true)} disabled={hint}>
+            💡 {hint ? `${word.emoji} ${word.meaningMn || word.meaning}` : "Санамж"}
+          </button>
+        </div>
+      </div>
 
-            <button
-              type="button"
-              className={`edu-flip${flipped ? " edu-flip--back" : ""}`}
-              onClick={() => setFlipped((f) => !f)}
-              aria-label="Картыг эргүүлэх"
-            >
-              <div className="edu-flip__inner">
-                <div className="edu-flip__face edu-flip__front">
-                  <span style={{ fontSize: 36 }}>{card.emoji}</span>
-                  <span className="edu-script" lang="mn-Mong">
-                    {card.script}
-                  </span>
-                  {galig && <span className="edu-galig">{card.galig}</span>}
-                  <span className="edu-muted" style={{ fontSize: 12 }}>
-                    Дарж эргүүлнэ үү ↻
-                  </span>
-                </div>
-                <div className="edu-flip__face edu-flip__back">
-                  <span style={{ fontSize: 44 }}>{card.emoji}</span>
-                  <span style={{ fontSize: 40, fontWeight: 900 }}>{card.cyrillic}</span>
-                  <span className="edu-galig">{card.galig}</span>
-                  <span style={{ opacity: 0.85 }}>{card.meaning}</span>
-                  <span className="edu-script edu-script--sm" lang="mn-Mong">
-                    {card.script}
-                  </span>
-                </div>
-              </div>
-            </button>
-
-            <div className="edu-row" style={{ justifyContent: "center" }}>
-              <button type="button" className="edu-btn edu-btn--ghost" onClick={() => go(-1)} aria-label="Өмнөх">
-                ◀
-              </button>
-              <button type="button" className="edu-btn edu-btn--ghost" onClick={() => void speak(card.cyrillic)}>
-                🔊 Сонсох
-              </button>
-              <button
-                type="button"
-                className="edu-btn edu-btn--mint"
-                onClick={(e) => void markLearned(e.currentTarget)}
-              >
-                ✓ Мэдлээ
-              </button>
-              <button type="button" className="edu-btn edu-btn--ghost" onClick={() => go(1)} aria-label="Дараах">
-                ▶
-              </button>
-            </div>
-          </section>
-
-          <div className="edu-between">
-            <h2 className="edu-h2">Бүх карт</h2>
-            {cards.some((c) => c.locked) && (
-              <Link to={`${BASE}/shop`} className="edu-btn edu-btn--amber edu-btn--sm">
-                🎴 Алтан картыг нээх
-              </Link>
-            )}
-          </div>
-          <div className="edu-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}>
-            {cards.map((c) => {
-              const openIndex = open.findIndex((o) => o.code === c.code);
+      <div ref={ref} className="education:flex education:flex-col education:items-center education:gap-4" style={{ width: "100%" }}>
+        {mode === "choice" ? (
+          <div className="edu-chips">
+            {options.map((option) => {
+              const state = !result
+                ? ""
+                : option === result.correctWord
+                  ? " edu-chip--correct"
+                  : option === chosen
+                    ? " edu-chip--wrong"
+                    : " edu-chip--dim";
               return (
                 <button
-                  key={c.code}
+                  key={option}
                   type="button"
-                  className={`edu-glass edu-mini${c.locked ? " edu-mini--locked" : ""}${card.code === c.code ? " edu-mini--active" : ""}`}
-                  disabled={c.locked}
-                  onClick={() => {
-                    setFlipped(false);
-                    setIndex(openIndex);
-                  }}
-                  title={c.locked ? "Дэлгүүрээс нээнэ" : c.cyrillic}
+                  className={`edu-chip${state}`}
+                  disabled={!!result || loading}
+                  onClick={(e) => void submit(option, e.currentTarget)}
                 >
-                  <span className="edu-script edu-script--sm" lang="mn-Mong">
-                    {c.script}
-                  </span>
-                  <strong>
-                    {c.locked ? "🔒 " : learned.includes(c.code) ? "✅ " : ""}
-                    {c.cyrillic}
-                  </strong>
+                  {option}
                 </button>
               );
             })}
           </div>
+        ) : (
+          <form
+            className="edu-row"
+            style={{ justifyContent: "center" }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit(typed, e.currentTarget);
+            }}
+          >
+            <input
+              className="edu-input"
+              style={{ width: 260, textAlign: "center", fontSize: 22, fontWeight: 800 }}
+              placeholder="Кирилл үг…"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              disabled={!!result}
+              autoFocus
+            />
+            <button type="submit" className="edu-btn edu-btn--mint" disabled={!!result || loading || !typed.trim()}>
+              {loading ? "…" : "✓ Шалгах"}
+            </button>
+          </form>
+        )}
+      </div>
+
+      {error && <ErrorBlock message={error.message} />}
+
+      {result && (
+        <>
+          <div className={`edu-rule edu-rule--${result.isCorrect ? "good" : "bad"}`}>
+            <div className="edu-rule__icon">{result.isCorrect ? "🎉" : "✏️"}</div>
+            <div className="education:flex education:flex-col education:gap-1">
+              <strong>
+                {result.isCorrect ? "Зөв! " : "Буруу. "}
+                <span style={{ fontSize: 20 }}>{result.correctWord}</span>{" "}
+                <span className="edu-pill edu-pill--gem" style={{ padding: "2px 10px", fontSize: 12 }}>
+                  +{result.xpEarned} XP
+                </span>
+              </strong>
+              {!result.isCorrect && (
+                <span>
+                  <span className="edu-diff-wrong">{result.check.originalWord}</span> →{" "}
+                  <span className="edu-diff-right">{result.check.correctedWord}</span>{" "}
+                  <span className="edu-tag edu-tag--coral">{result.check.errorType}</span>
+                  <br />
+                  <span className="edu-muted">{result.check.explanationMn}</span>
+                </span>
+              )}
+            </div>
+          </div>
+          {result.galigNote && (
+            <div className="edu-rule edu-rule--hint">
+              <div className="edu-rule__icon">🔁</div>
+              <div className="education:flex education:flex-col education:gap-1">
+                <strong>Галиг → кирилл хувирал</strong>
+                <span>{result.galigNote}</span>
+                {word.rule && <span className="edu-muted">📌 {word.rule}</span>}
+              </div>
+            </div>
+          )}
+          <div className="edu-row" style={{ justifyContent: "center" }}>
+            <button type="button" className="edu-btn edu-btn--ghost edu-btn--sm" onClick={() => void voice.speak(result.correctWord)}>
+              🔊 Сонсох (заавал биш)
+            </button>
+            <button
+              type="button"
+              className={`edu-btn edu-btn--lg ${result.isCorrect ? "edu-btn--mint" : "edu-btn--coral"}`}
+              onClick={() => onDone(result.isCorrect)}
+              autoFocus
+            >
+              Дараах →
+            </button>
+          </div>
         </>
+      )}
+    </div>
+  );
+};
+
+export const CardsPage = () => {
+  useMongolianFont();
+  const { data, loading, error, refetch } = useQuery(CARDS_QUERY);
+  const [mode, setMode] = useState<Mode>("choice");
+  const [showGalig, setShowGalig] = useState(true);
+  const [round, setRound] = useState(0);
+  const [score, setScore] = useState({ right: 0, total: 0, streak: 0 });
+
+  const all = data?.educationCards ?? [];
+  const open = useMemo(() => all.filter((w) => !w.locked), [all]);
+  const order = useMemo(() => shuffle(open, open.length + 11), [open]);
+  const locked = all.length - open.length;
+  const word = order.length ? order[round % order.length] : undefined;
+
+  const done = (correct: boolean) => {
+    setScore((s) => ({ right: s.right + (correct ? 1 : 0), total: s.total + 1, streak: correct ? s.streak + 1 : 0 }));
+    setRound((r) => r + 1);
+  };
+
+  return (
+    <Shell title="Монгол бичиг · Галиг" icon={IconAlphabetCyrillic}>
+      <div className="edu-between">
+        <div className="edu-row">
+          <button
+            type="button"
+            className={`edu-btn edu-btn--sm ${mode === "choice" ? "" : "edu-btn--ghost"}`}
+            onClick={() => setMode("choice")}
+          >
+            А · 4 сонголт
+          </button>
+          <button
+            type="button"
+            className={`edu-btn edu-btn--sm ${mode === "typing" ? "edu-btn--mint" : "edu-btn--ghost"}`}
+            onClick={() => setMode("typing")}
+          >
+            Б · Бичих
+          </button>
+          <label className="edu-switch">
+            <input type="checkbox" checked={showGalig} onChange={(e) => setShowGalig(e.target.checked)} />
+            Галиг
+          </label>
+        </div>
+        <div className="edu-row">
+          <span className="edu-pill edu-pill--mint">
+            ✓ {score.right}/{score.total}
+          </span>
+          <span className="edu-pill edu-pill--fire">🔥 {score.streak} дараалан</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <LoadingBlock height={420} />
+      ) : error ? (
+        <ErrorBlock message={error.message} onRetry={() => refetch()} />
+      ) : !word ? (
+        <EmptyBlock emoji="📭" title="Үг алга" />
+      ) : (
+        <section className="edu-glass">
+          <ScriptTask
+            key={`${word.code}-${round}-${mode}`}
+            word={word}
+            all={open}
+            mode={mode}
+            showGalig={showGalig}
+            seed={round + 5}
+            onDone={done}
+          />
+        </section>
+      )}
+
+      {locked > 0 && (
+        <div className="edu-glass edu-between">
+          <span>
+            🎴 <b>{locked}</b> тусгай үг (Чингис, Хаан, Эх орон …) түгжээтэй байна.
+          </span>
+          <Link to={`${BASE}/shop`} className="edu-btn edu-btn--amber edu-btn--sm">
+            Алтан картаар нээх
+          </Link>
+        </div>
       )}
     </Shell>
   );
