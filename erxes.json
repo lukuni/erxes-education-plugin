@@ -1,0 +1,20 @@
+{
+  "name": "education",
+  "title": "Education",
+  "description": "Gamified Mongolian spelling dictation, Mongolian script flashcards and a Gemma 4 writing assistant",
+  "version": "0.1.0",
+  "api": {
+    "framework": "platform",
+    "runtime": "node",
+    "port": 3399,
+    "graphql": "/graphql",
+    "health": "/health"
+  },
+  "ui": {
+    "framework": "react",
+    "port": 3099,
+    "name": "education",
+    "remote": "education_ui",
+    "path": "education"
+  }
+}
